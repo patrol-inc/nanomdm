@@ -308,3 +308,9 @@ func (s *SQLiteStorage) updateLastSeen(r *mdm.Request) (err error) {
 	}
 	return
 }
+
+// Close closes the database. Closing the last connection checkpoints the
+// WAL into the main file, so the file alone is then complete.
+func (s *SQLiteStorage) Close() error {
+	return s.db.Close()
+}

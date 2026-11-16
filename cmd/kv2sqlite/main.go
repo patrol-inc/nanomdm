@@ -33,8 +33,18 @@ func main() {
 	if _, err := os.Stat(*to); err == nil {
 		stdlog.Fatalf("%s already exists; refusing to overwrite", *to)
 	}
-	n, err := convert(context.Background(), *from, *to)
+	// Build into a temporary file and rename it into place only when the
+	// copy is complete, so an interrupted run never leaves a partial store
+	// that NanoMDM would start on.
+	tmp := *to + ".converting"
+	for _, f := range []string{tmp, tmp + "-wal", tmp + "-shm"} {
+		_ = os.Remove(f)
+	}
+	n, err := convert(context.Background(), *from, tmp)
 	if err != nil {
+		stdlog.Fatal(err)
+	}
+	if err := os.Rename(tmp, *to); err != nil {
 		stdlog.Fatal(err)
 	}
 	fmt.Printf("copied %d enrollments, %d certificate associations, %d push certificates\n", n.enrollments, n.certAuth, n.pushCerts)
@@ -69,6 +79,12 @@ func convert(ctx context.Context, from, to string) (n counts, err error) {
 	if err != nil {
 		return n, err
 	}
+	defer func() {
+		// checkpoints the WAL into the file (see main's rename)
+		if cerr := dst.Close(); err == nil {
+			err = cerr
+		}
+	}()
 
 	// Push certificates first: enrollments reference their topics.
 	for _, key := range nlkv.AllKeys(ctx, src.PushCert) {
