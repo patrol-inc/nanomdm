@@ -136,6 +136,16 @@ Options are specified as a comma-separated list of "key=value" pairs. The pgsql 
 
 *Example:* `-storage pgsql -storage-dsn postgres://postgres:toor@localhost/nanomdm -storage-options delete=1`
 
+#### sqlite storage backend
+
+* `-storage sqlite`
+
+Configures the SQLite storage backend (pure Go, no cgo). The `-storage-dsn` flag is the path of the database file, created if missing; the schema ([schema.sql](../storage/sqlite/schema.sql)) is applied at start. Every connection uses WAL, a 10 s busy timeout, foreign keys and immediate transactions, so commands queued while a device is fetching are never lost (the `filekv` queue can lose them under overlapping requests; see `storage/sqlite/race_test.go`). Back it up with SQLite's online backup (`sqlite3 db ".backup copy.db"`), not by copying the file while it is open.
+
+*Example:* `-storage sqlite -storage-dsn /data/nanomdm.db`
+
+It takes the same `delete=1` / `delete=0` option as pgsql.
+
 #### in-memory storage backend
 
 * `-storage inmem`

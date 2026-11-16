@@ -13,6 +13,7 @@ import (
 	"github.com/micromdm/nanomdm/storage/inmem"
 	"github.com/micromdm/nanomdm/storage/mysql"
 	"github.com/micromdm/nanomdm/storage/pgsql"
+	"github.com/micromdm/nanomdm/storage/sqlite"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
@@ -93,6 +94,12 @@ func (s *Storage) Parse(logger log.Logger) (storage.AllStorage, error) {
 				return nil, err
 			}
 			mdmStorage = append(mdmStorage, pgsqlStorage)
+		case "sqlite":
+			sqliteStorage, err := sqliteStorageConfig(dsn, options, logger)
+			if err != nil {
+				return nil, err
+			}
+			mdmStorage = append(mdmStorage, sqliteStorage)
 		case "inmem":
 			if options != "" {
 				return nil, ErrNoStorageOptions
@@ -182,4 +189,31 @@ func pgsqlStorageConfig(dsn, options string, logger log.Logger) (*pgsql.PgSQLSto
 		}
 	}
 	return pgsql.New(opts...)
+}
+
+func sqliteStorageConfig(dsn, options string, logger log.Logger) (*sqlite.SQLiteStorage, error) {
+	logger = logger.With("storage", "sqlite")
+	if dsn == "" {
+		return nil, ErrMissingDSN
+	}
+	opts := []sqlite.Option{
+		sqlite.WithDSN(dsn),
+		sqlite.WithLogger(logger),
+	}
+	if options != "" {
+		for k, v := range splitOptions(options) {
+			switch k {
+			case "delete":
+				if v == "1" {
+					opts = append(opts, sqlite.WithDeleteCommands())
+					logger.Debug("msg", "deleting commands")
+				} else if v != "0" {
+					return nil, fmt.Errorf("invalid value for delete option: %q", v)
+				}
+			default:
+				return nil, fmt.Errorf("invalid option: %q", k)
+			}
+		}
+	}
+	return sqlite.New(opts...)
 }
